@@ -1,1 +1,1 @@
-Copy of publically available data in .csv format
+Copy of publicly available data in .csv format
