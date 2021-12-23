@@ -1,0 +1,1180 @@
+---
+title: "Modelled regional income timeseries"
+author: "Alan Bentley"
+date: "`r format(Sys.time(), '%B %Y')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = F, message=F, warning=F, cache=F)
+
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(tidyr)
+library(stringr)
+library(zoo)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+
+#Some colours
+palc <- c("#00394C","#FFBE1C","grey60","#D3823E","#00A04A","#222423","#000000")
+
+# Custom ggplot (chart) themes
+theme_ab = function(base_size=14) {
+  theme_minimal() +
+    theme(text = element_text(size = base_size, color="grey30"),
+          plot.title = element_text(size=14),
+          plot.subtitle = element_text(size=11),
+          plot.caption = element_text(size=10),
+          legend.text = element_text(size=10),
+          axis.text.y = element_text(size=9),
+          axis.text.x = element_text(size=9),
+          axis.title = element_text(size=10),
+          strip.text = element_text (color="grey30", size=9, margin = margin(0,.5,0,.5, "cm")),
+          panel.spacing = unit(1, "lines"))
+}
+
+# Some helpful data functions
+
+date_to_qtr <- function(dt){
+  # Take a date and return the last day of the quarter that the date is in
+
+  qtr_first_day <- yq(paste(year(dt), quarter(dt)))
+
+  qtr_last_day <- ceiling_date(qtr_first_day, unit = "quarter") - days(1)
+
+  qtr_last_day
+
+}
+
+date_to_month <- function(dt){
+  # Take a date and return the last day of that month as a date
+
+  ceiling_date(dt, unit = "months") - days(1)
+
+}
+
+date_to_week <- function(dt){
+  # Take a date and return the last day of that week as a date (week ending Sunday)
+  
+  ceiling_date(dt, unit = "week", week_start = getOption("lubridate.week.start", 1)) - days(1)
+  
+}
+
+# path to input data
+
+root <- "https://raw.githubusercontent.com/alan-bentley/regional_income/master"
+
+root_data <- paste0(root,"/data")
+
+
+```
+
+<style type="text/css">
+
+
+body{ /* Normal  */
+      font-size: 16px;
+      color: #4d5b61;
+  }
+td {  /* Table  */
+  font-size: 16px;
+}
+h1.title {
+  font-size: 40px;
+  color: #4d5b61;
+  border-bottom: 5px solid #FFBE1C;
+  padding-top: 5px;
+  padding-bottom: 30px;
+  font-weight: bold
+}
+h1 { /* Header 1 */
+  font-size: 36px;
+  color: #4d5b61;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: #4d5b61;
+}
+h3 { /* Header 3 */
+  font-size: 20px;
+  color: #4d5b61;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 20px;
+}
+</style>
+
+\newpage
+
+# Introduction
+
+## Data needs
+
+*Regional income* series -- split by regional council and territorial authority -- are needed to understand households' and individuals' economic resources. For example, we can use these series alongside rentals for housing and house prices to provide indicators of housing affordability.
+
+Regional timeseries of household income are not readily available as official statistics. This document describes our modelling approach, which combines several data sources, to estimate regional household income.
+
+## Modelling approach
+
+Our modelling strategy is to use timely, but less comprehensive, indicators, calibrated to reliable, but infrequent, benchmarks available with a notable lag. This is a three stage approach:
+
+1. Create **income benchmarks**: The Household Economic Survey (HES) is used to estimate *calibration and coverage factors* to apply to Census income estimates
+2. **Interpolate** *between* income benchmarks: Linked employer-employee (LEED) tax data is used to estimate regional income timeseries between benchmarks (created in step 1)
+3. **Extrapolate** *beyond* income benchmarks: LEED and other tax data is to used to extend the regional income timeseries to the latest period 
+
+The approach is flexible so can be used to estimate several aggregate statistics:
+
+* Gross (before tax) and disposable (after tax) income
+* For various income sharing units: personal, household, equivalised household (accounts for different household composition)
+* By *tenure* (renters and all households)
+* For different *periodicities* (annual, quarterly)
+
+\newpage
+
+## Data used
+
+Four income data sources are used: two surveys and two variants of administrative tax data (see Table 1). Individually, each source has critical weaknesses. Collectively, we can borrow strength from each source to model timely, reliable, estimates.
+
+### Table 1: Summary of data sources {-}
+
+| **Source**                | **Availability**         |**Quality characteristics**           |
+| ------------------------- |:---------------:| :-----------------------:| 
+| Household Economic Survey (**HES**)  | Yearly, reporting lag of about 18 months | Comprehensive coverage of income sources (gross and disposable); limited regional coverage as sample survey | 
+| **Census** of population and dwellings  | 5-yearly, reporting lag of about 18 months | Comprehensive regional coverage; only gross (before tax) income - overall quality thought to be lower than HES | 
+| Tax data: Linked employer-employee data (**LEED**)  | Quarterly, 4-5 quarter lag | Good regional coverage; *median gross earnings per job, based on employment location* (rather than home address) | 
+| Tax data: **Business employment data**  | Quarterly, 2 month lag | Good regional coverage; *mean* gross earnings per job, based on *employer location* (rather than home address) | 
+
+\newpage
+
+# Income benchmarks
+
+The **first stage** uses survey data; namely, the Census of population and dwellings, and Household Economic Survey (HES). The Census has comprehensive regional coverage (for example, series are available for territorial authorities and Auckland local boards), but only gross (before tax) income is reported. Census income is collected as discrete, banded, amounts, so is less precise than income reported as dollars. The quality of HES income series is considered superior as detailed collection, by income source (in dollars), aids coverage of income sources and allows for the calculation of disposable (after tax) income.
+
+### Figure 1 {-}
+
+```{r}
+#1. Create coverage and calibration factors
+
+#1.1 Read and tidy customised data 
+
+#1.1.1 HES (available at https://catalogue.data.govt.nz/dataset/hes-gross-and-disposable-income-timeseries-2006-07-2018-19)
+
+# Household income
+
+HES_hh <- read.csv("https://catalogue.data.govt.nz/dataset/b94e07c7-b877-4a49-8eb7-6171e13f81aa/resource/048bf4ac-45db-4bba-b015-9b9226bc690d/download/hes-householdincome.csv") %>% 
+  mutate(unit="Household") %>% 
+  select(-c("MeanOECModIncome","MedianOECModIncome"))
+
+# Personal income
+
+HES_per <- read.csv("https://catalogue.data.govt.nz/dataset/b94e07c7-b877-4a49-8eb7-6171e13f81aa/resource/fed6d2ed-b07a-40b3-91bd-3866e0d686df/download/hes-personincome.csv") %>% 
+  mutate(unit="Personal")
+
+HES_inc <- HES_hh %>% 
+  rbind(HES_per) %>% 
+  gather(inc_type,value,-c(Year,RegCouncil,HouseholdTenure,unit)) %>% 
+  filter(RegCouncil == "Total" &
+           Year != "2019") %>% 
+  group_by(inc_type,HouseholdTenure,unit) %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31")),
+    x=1:n(),
+         value_smooth=predict(loess(value ~ x, span=0.5)),
+    tenure=recode(HouseholdTenure,
+                  "Dwelling not owned, rent payments made"="Renters",
+                  "Total"="All")) %>% #smooth series
+  filter(inc_type %in% c("MedianTotalRegular","MedianDispIncome")) %>% 
+  ungroup() %>% 
+  select(unit,tenure,inc_type,value,date,value_smooth) %>% 
+  gather(trend_type,value,-c(unit,tenure,inc_type,date)) %>% 
+  mutate(trend_type=recode(trend_type,
+                                  'value'="actual",
+                                  'value_smooth'="smoothed"),
+         inc_type=recode(inc_type,
+                         "MedianTotalRegular"="Gross",
+                         "MedianDispIncome"="Disposable"))
+
+#1.1.2 Census (available at https://catalogue.data.govt.nz/dataset/census-household-and-personal-income-series)
+
+Census_hh <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv") %>% 
+  filter(RegionalCouncil == "Total") %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
+  rename(tenure="HouseholdTenure") %>% 
+  gather(unit,value,-c(Year,date,tenure)) %>% 
+  filter(tenure %in% c("Total","21 Rented"),
+         unit %in% c("MedianHouseholdIncome","MedianPersonalIncome")) %>% 
+  mutate(value=as.numeric(value),
+         tenure = recode(tenure, "21 Rented"="Renters",
+                         "Total"="All"),
+         unit=recode(unit,
+                     "MedianHouseholdIncome"="Household",
+                     "MedianPersonalIncome"="Personal"),
+         inc_type = "Gross") 
+
+# 1.2 Plot the data
+
+p1 <- ggplot(HES_inc, aes(date,value))+
+  geom_line(aes(size=trend_type, colour=inc_type))+
+  geom_point(data=Census_hh, aes(shape="Census"), size=2, colour=palc[2])+
+  facet_grid(unit~tenure)+
+  theme_ab()+
+  scale_size_manual(values=c(.3,.8), labels=c("actual"="HES, actual","smoothed"="HES, smoothed"), name="")+
+  scale_colour_manual(values=palc,name="")+
+  scale_linetype_manual(values=c("dotted","solid"), name="")+
+  scale_shape_manual(values=19, name="")+
+  scale_y_continuous(labels=dollar)+
+  labs(title="Comparison of median income estimates",
+       subtitle="HES and Census, by tenure and income sharing unit",
+       y="", x="",
+       caption="Thin lines are actual HES estimates,
+       Thick lines are smoothed HES estimates (LOESS trends) \n
+       Source: Stats NZ and author's calculations")+
+  guides(size = guide_legend(order=1),
+         shape = guide_legend(override.aes = list(colour = palc[2]), order=2),
+         colour = guide_legend(override.aes = list(size = 5)), order=3)
+
+p1
+
+
+```
+
+
+Shown in Figure 1, gross income is a higher estimate using the HES compared with Census. We smoothed the HES timeseries using a LOESS (locally estimated scatterplot smoothing) regression to reduce HES sampling errors; HES 2018/19 data was not used due to a discontinuity in the source of income data. The HES series overlap with the the 2013 and 2018 Censuses (the income reference period is assumed comparable: Censuses are conducted in March; HES is conducted continuously, reported for each year to June). Calculating the average ratio of HES to Census gross income estimates produces gross income *calibration factors* (see Table 2 and Figure 2).  These have been calculated for household and personal income, by tenure type (renters and all households).
+
+Replacing HES gross income with disposable income we can calculate analogous *calibration and coverage factors* for disposable income.
+
+\newpage
+
+
+### Table 2: Census calibration and coverage factors {-}
+
+
+```{r}
+#2.1. calculate census calibration and coverage factor
+
+Census_hh2 <- Census_hh %>% 
+  filter(date %in% c(as.Date("2013-03-31"),as.Date("2018-03-31"))) %>% 
+  select(-c(Year,inc_type)) %>% 
+  rename(cvalue=value)
+
+c_factor <- HES_inc %>% 
+  filter(trend_type == "smoothed",
+         date %in% c(as.Date("2013-03-31"),as.Date("2018-03-31"))) %>% 
+  select(-trend_type) %>% 
+  right_join(Census_hh2, by=c("unit","tenure","date")) %>% 
+  mutate(cfactor=value/cvalue) %>% 
+  group_by(unit,tenure,inc_type) %>% 
+  summarise(cfactor=(mean(cfactor))) %>% 
+  ungroup()
+
+c_factor_tab <- c_factor %>%
+  mutate(cfactor=round(cfactor,2)) %>% 
+  pivot_wider(names_from=inc_type,values_from=cfactor)
+
+kable(c_factor_tab,
+      booktabs = T, col.names = c("Income unit","Tenure","Disposable","Gross")) %>% 
+  add_header_above(c(" "=2, "Income type" = 2)) %>% 
+  kable_styling(position = "center")
+
+```
+
+### Figure 2 {-}
+
+```{r}
+
+#2.2 plot calibration and coverage factors
+
+HES_inc2 <- filter(HES_inc, unit=="Household", tenure=="All", trend_type=="smoothed")
+
+Census_hh2 <- filter(Census_hh, unit=="Household", tenure=="All")
+
+p2 <- ggplot(HES_inc2, aes(date,value, colour=inc_type))+
+  geom_line()+
+  geom_point(data=filter(HES_inc2, date %in% c(as.Date("2013-03-31"),as.Date("2018-03-31"))), aes(shape="HES"), size=3)+
+  geom_curve(aes(x=as.Date("2013-03-31"),xend=as.Date("2013-03-31"),y=63800,yend=68604), curvature = 0.5, size=.5, colour=palc[2], arrow = arrow(length = unit(0.03, "npc")))+
+  geom_curve(aes(x=as.Date("2018-03-31"),xend=as.Date("2018-03-31"),y=75700,yend=83271), curvature = 0.5, size=.5, colour=palc[2], arrow = arrow(length = unit(0.03, "npc")))+
+  geom_curve(aes(x=as.Date("2013-03-31"),xend=as.Date("2013-03-31"),y=63800,yend=58434.23), curvature = 0.5, size=.5, colour=palc[4], arrow = arrow(length = unit(0.03, "npc")))+
+  geom_curve(aes(x=as.Date("2018-03-31"),xend=as.Date("2018-03-31"),y=75700,yend=70588.17), curvature = 0.5, size=.5, colour=palc[4], arrow = arrow(length = unit(0.03, "npc")))+
+  geom_point(data=Census_hh2, aes(shape="Census"), size=3)+
+  annotate("text", x = as.Date("2008-03-31"), y = 70000, label = "gross income calibration factor", colour=palc[2])+
+  annotate("text", x = as.Date("2015-03-31"), y = 52000, label = "disposable \nincome \ncalibration and \ncoverage factor", colour=palc[4])+
+  theme_ab()+
+  scale_size_manual(values=c(.1,1), name="")+
+  scale_colour_manual(values=c("grey70","grey40"),name="")+
+  scale_linetype_manual(values=c("dotted","solid"), name="")+
+  scale_shape_manual(values=c(19,1), name="")+
+  scale_y_continuous(labels=dollar)+
+  labs(title="Calibration and coverage factors: calculation",
+       subtitle="All tenures, household income",
+       y="", x="",
+       caption="Smoothed HES estimates (LOESS trends) \n
+       Source: Stats NZ and author's calculations")+
+  theme(panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank())
+
+p2
+
+```
+
+
+\newpage
+
+### Figure 3 {-}
+
+The resulting New Zealand level benchmark estimates, after applying the calibration and coverage factors, to Census data, is shown in Figure 3. The same factors were applied for each regional area of New Zealand.
+
+```{r}
+#3. Create benchmarks
+
+#3.1 Census for all areas 
+
+Census_hh <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv") %>%  
+  filter(RegionalCouncil == "Total") %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
+  rename(tenure="HouseholdTenure") %>% 
+  gather(unit,value,-c(Year,date,tenure)) %>% 
+  filter(tenure %in% c("Total","21 Rented"),
+         unit %in% c("MedianHouseholdIncome","MedianPersonalIncome")) %>% 
+  mutate(value=as.numeric(value),
+         tenure = recode(tenure, "21 Rented"="Renters"),
+         unit=recode(unit,
+                     "MedianHouseholdIncome"="Household",
+                     "MedianPersonalIncome"="Personal"),
+         inc_type = "Gross")
+
+#3.2 Create combo file from separate area level files
+
+cc1 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv") %>% 
+  rename(area=RegionalCouncil) %>% 
+  mutate(area=ifelse(area=="Total","New Zealand",area),
+         area=str_trim(gsub('[0-9]+', '', area)),
+    level = ifelse(area=="New Zealand","New Zealand","Regional Council"),
+    area = ifelse(area=="New Zealand","New Zealand",paste0(area," Region")))
+
+cc2 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/dc7e26dc-eba7-43f9-b2c2-854494c38543/download/t2-ta-hhincome-oecdmod-2001-2018.csv") %>%  
+  rename(area=TerritorialAuthority) %>% 
+  mutate(level="Territorial Local Authority")
+
+cc3 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/2ee674bd-eb7c-4e40-8ed0-bedf7c44b059/download/t3-alb-hhincome-oecdmod-2001-2018.csv") %>% 
+  rename(area=LocalBoardArea) %>% 
+  mutate(level="Auckland Local Board") %>% 
+  filter(area !="Total")
+
+cc <- rbind(cc1, cc2, cc3) %>% 
+  filter(area != "99 Area outside region") %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
+  rename(tenure="HouseholdTenure") %>%
+  select(-Year) %>% 
+  gather(stat,value,-c(date,area,level,tenure)) %>% 
+  filter(tenure %in% c("Total","21 Rented"),
+         grepl("Median",stat)) %>% 
+  mutate(value=as.numeric(value),
+         tenure = recode(tenure, "21 Rented"="Renters",
+                         "Total"="All"),
+         unit=ifelse(stat == "MedianPersonalIncome", "Personal", "Household"),
+         unit2=recode(stat,
+                     "MedianPersonalIncome"="Personal",
+                     "MedianHouseholdIncome"="Household",
+                     "MedianOECDModifiedIncome"="Equivalised Household")) %>% 
+  right_join(c_factor_tab, by=c("unit","tenure")) %>% 
+  mutate(value_gross=value*Gross,
+         value_disposable=value*Disposable) %>% 
+  select(-c("stat","unit","value","Gross","Disposable")) %>% 
+  rename(unit=unit2) %>% 
+  gather(inc_type,value,-c(area,tenure,level,date,unit)) %>% 
+  mutate(inc_type=recode(inc_type,
+                         "value_gross"="Gross",
+                         "value_disposable"="Disposable"),
+         source="Census") %>% 
+  filter(!(area %in% c("Area outside region Region","Area Outside Territorial Authority",
+                       "Chatham Islands Territory","Auckland","Total")) &
+           level != "Auckland Local Board")
+  
+
+NZ_benchmarks <- filter(cc, level=="New Zealand")
+
+Reg_benchmarks <- filter(cc, level=="Regional Council")
+
+TA_benchmarks <- filter(cc, level=="Territorial Local Authority")
+
+#3.3 Plot the NZ benchmarks
+
+p3 <- ggplot(NZ_benchmarks, aes(date,value, colour=inc_type))+
+  geom_point(size=2)+
+  facet_grid(tenure~unit)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_y_continuous(labels=dollar)+
+  labs(title="Benchmark values",
+       subtitle="New Zealand, Income sharing unit by tenure",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="top")
+
+p3
+
+```
+
+\newpage
+
+# Interpolation and extrapolation
+
+## Method explained
+
+The **second stage** uses Linked employer-employee (LEED) tax data to **interpolate** *between* income benchmarks.
+
+1. LEED median gross earnings per job are converted from *quarterly* to *annual* amounts, by aggregating over a rolling 4-quarter period.
+2. *Benchmark factors* are calculated as the ratio of annualised LEED median earnings to income benchmarks (estimated from HES and Census in stage 1)
+3. A timeseries of benchmark factors (between Census years) is created by linear interpolation
+4. Applying these factors to the LEED earnings timeseries results in calibrated income timeseries
+
+The **third stage** uses LEED and other tax data to extend the timeseries to the latest period.
+
+1. LEED quarterly series are available with a 4-5 quarter lag. The latest available benchmark factor (from the time of the most recent Census) is applied to the LEED earnings series available beyond the benchmark.
+2. This series is further extended to the latest period using annual changes (on a quarterly frequency) in another source of tax data, *Business employment data*, mean gross earnings are now used as median series are currently unavailable.
+
+## Final income timeseries
+
+The resulting timeseries, for total New Zealand, are shown in Figure 4. The same methodology is applied for each regional area of New Zealand.
+
+### Figure 4 {-}
+
+```{r, fig.height=6}
+#4. Interpolate and extrapolate benchmarks with tax data (ANNUAL income)
+
+#4.1 Read LEED (Linked Employer-Employee Data) https://www.stats.govt.nz/information-releases/linked-employer-employee-data-september-2020-quarter-nz-stat-tables
+
+leed_ta <- read.csv(paste0(root_data,"/LEED_table37.csv"), na.strings=c("","NA"))[,c(1:2,7)] %>% 
+  fill(Quarter) %>%
+  rename(area=Territorial.authority,
+         med_inc=Median.earnings.of.full.quarters.jobs) %>% 
+  filter(med_inc!="..") %>% 
+  mutate(area=str_trim(area),
+         area=gsub("district","District",area),
+         area=gsub("city","City",area),
+         area=gsub(" \\(modified\\)","",area),
+         area=gsub("Total territorial authority","New Zealand",area),
+         area=gsub("Wanganui District","Whanganui District",area),
+         med_inc=as.numeric(med_inc),
+         date=as.Date(paste0(Quarter,"-01"),format="%b-%y-%d"),
+         date=date_to_qtr(date),
+         source="LEED",
+         level=ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")) %>% 
+  select(-Quarter) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=med_inc+lag(med_inc,1)+lag(med_inc,2)+lag(med_inc,3)) %>% #annual income
+  ungroup()
+
+leed_reg <- read.csv(paste0(root_data,"/LEED_table5.csv"), na.strings=c("","NA"))[,c(1:2,7)] %>% 
+  fill(Quarter) %>%
+  rename(area=Region,
+         med_inc=Median.earnings.of.full.quarters.jobs) %>% 
+  filter(med_inc!="..") %>% 
+  mutate(area=paste0(str_trim(area), " Region"),
+         area=gsub("Manawatu-Wanganui Region","Manawatu-Whanganui Region",area),
+         med_inc=as.numeric(med_inc),
+         date=as.Date(paste0(Quarter,"-01"),format="%b-%y-%d"),
+         date=date_to_qtr(date),
+         source="LEED",
+         level="Regional Council") %>% 
+  select(-Quarter) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=med_inc+lag(med_inc,1)+lag(med_inc,2)+lag(med_inc,3)) %>% 
+  ungroup() %>% 
+  filter(area != "Total Region Region")
+
+leed <- rbind(leed_ta, leed_reg) %>% 
+  group_by(area) %>% #Remove incomplete series (Auckland old TAs)
+  mutate(max_date=max(date),
+         min_date=min(date)) %>%
+  ungroup() %>% 
+  filter(max_date==max(date),
+         min_date==min(date)) %>% 
+  select(-c(max_date,min_date)) %>% 
+  rename(value=med_inc) %>%
+  filter(date >= as.Date("2001-03-31")) #remove prior to 2001 Census
+
+#4.2 More recent quarters from Business Employment Statistics - https://www.stats.govt.nz/methods/introducing-a-new-business-employment-statistics-release
+# https://www.stats.govt.nz/information-releases/employment-indicators-september-2021
+
+download.file("https://www.stats.govt.nz/assets/Uploads/Business-employment-data/Business-employment-data-September-2021-quarter/Download-data/business-employment-data-september-2021-quarter-csv.zip",destfile = "bus_emp_sep21.zip")
+bus_emp <- read.csv(unz("bus_emp_sep21.zip", "Machine-readable-business-employment-data-sep-2021-quarter.csv"))
+
+bus_emp2 <- bus_emp %>% 
+  filter(Series_title_2 =="Total Industry"|
+    Group == "Territorial authority by employment variable" & Series_title_2 !="Auckland"|
+    Group %in% c("Region by employment variable"),
+         Series_title_1 %in% c("Filled jobs", "Total earnings"),
+         Series_title_2 != "Area Outside Territorial Authority",
+        Series_title_3 == "Actual") %>% 
+  mutate(Series_title_2 = ifelse(Group == "Region by employment variable", paste0(Series_title_2," Region"), Series_title_2)) %>% 
+  select(Period,Data_value,Series_title_1,Series_title_2) %>% 
+  mutate(date=as.Date(ifelse(as.character(substr(Period, 6, 7))!="1",paste0(Period,".01"),paste0(as.character(Period),"0.01")),"%Y.%m.%d"),
+         date=date_to_month(date)) %>% 
+  pivot_wider(names_from = Series_title_1, values_from = Data_value) %>% 
+  select(-Period) %>% 
+  setNames(c("area","date","jobs","earnings")) %>% 
+   mutate(earnings=earnings*1000000,
+    ave_earnings=(earnings/jobs), #average earnings, per quarter
+    area=recode(area, 'Total Industry'="New Zealand")) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=ave_earnings+lag(ave_earnings,1)+lag(ave_earnings,2)+lag(ave_earnings,3), # annual
+         source="Business employment data, mean earnings") %>% 
+  select(date,area, med_inc,area,source) %>% 
+  rename(value=med_inc) %>% 
+  mutate(level=ifelse(grepl("Region",area),"Regional Council",
+                      ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")))
+
+bus_emp3 <- bus_emp2 %>% 
+  filter(date >= max(leed$date)) %>%
+  arrange(date) %>% 
+  mutate(index=value/value[1]) %>% 
+  select(date,index,area, level) %>% 
+  filter(date != max(leed$date))
+
+#4.3 Interpolate HES/Census benchmarks with LEED and business employment data
+
+polate <- function (unit_in, inc_type_in, tenure_in) {
+  
+  combo1 <- cc %>% 
+  filter(unit==unit_in, inc_type==inc_type_in,
+         tenure==tenure_in) %>% 
+  select(-c(unit,inc_type,tenure)) %>% 
+  rbind(leed) %>% 
+  pivot_wider (names_from=source, values_from=value) %>% 
+  group_by(area) %>%
+  arrange(date) %>%
+  mutate(ratio= Census/LEED, #calibration factor
+         ratio=ifelse(is.na(ratio),na.approx(ratio),ratio), #interpolate between Censuses
+         ratio=ifelse(date <= as.Date("2018-03-31"), ratio, ratio[date==as.Date("2018-03-31")]), #extrapolate beyond
+         LEED2 = LEED*ratio)
+
+combo2 <- rbind(combo1,bus_emp3) %>% 
+  group_by(area) %>% 
+  mutate(LEED3=ifelse(is.na(LEED2),LEED2[date==max(leed$date)]*index,LEED2),
+         source=ifelse(date <= as.Date("2018-03-31"),"LEED interpolated",
+                       ifelse(date > as.Date("2018-03-31") & date <= max(leed$date), 
+                              "LEED extrapolated", "Tax extrapolated"))) %>% 
+  rename(value=LEED3) %>% 
+  ungroup() %>% 
+  select(area,date,source,value) %>% 
+  mutate(unit=unit_in, 
+         inc_type=inc_type_in,
+         tenure=tenure_in)
+
+combo2
+
+}
+
+combo_polate <- c()
+
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Disposable", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Disposable", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Disposable", tenure_in="All"))
+
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Disposable", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Disposable", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Disposable", tenure_in="Renters"))
+
+HUD_mod_inc_a <- combo_polate %>% 
+  mutate(vintage=Sys.Date(),
+         source=factor(source, levels=c("LEED interpolated","LEED extrapolated","Tax extrapolated")),
+         inc_freq="annual",
+         level=ifelse(grepl("Region",area),"Regional Council",
+                      ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")))
+
+
+#4.4 Plot for NZ
+
+HUD_mod_inc_NZ <- filter(HUD_mod_inc_a, area=="New Zealand") %>%
+  group_by(tenure,unit) %>% 
+  mutate(source_max=lead(date))
+
+p4 <- ggplot(HUD_mod_inc_NZ, aes(date,value))+
+  geom_rect(aes(xmin = date, xmax = source_max, ymin = -Inf, ymax = Inf, fill = source), alpha=.3)+
+  geom_point(data=NZ_benchmarks, aes(shape="benchmarks",colour=inc_type), size=2)+
+  geom_line(aes(colour=inc_type))+
+  # geom_line(data=HES_inc, aes(linetype="HES", colour=inc_type))+
+  # geom_point(data=HES_inc, aes(shape="HES", colour=inc_type))+
+  facet_grid(tenure~unit)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
+  # scale_fill_manual(values=c("#e9f9ff","#c2f0ff","#00a0d5"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_linetype_manual(values="dotted")+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=c(19,3), name="")+
+  labs(title="Modelled timeseries",
+       subtitle="New Zealand, Income sharing unit by tenure",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom")+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+p4
+
+```
+
+The method can also be used to create quarterly timeseries. LEED series now use the original quarterly values (not rolled up to annual amounts) and the Census-HES benchmarks are divided by four to estimate quarterly values. Shown in Figure 5, the series are more volatile, but changes in income growth may be apparent sooner using a quarterly income series.
+
+### Figure 5 {-}
+
+
+```{r, fig.height=6}
+#5. Interpolate and extrapolate benchmarks with tax data (QUARTERLY income)
+
+#5.1 Read LEED (Linked Employer-Employee Data) https://www.stats.govt.nz/information-releases/linked-employer-employee-data-september-2020-quarter-nz-stat-tables
+
+leed_ta <- read.csv(paste0(root_data,"/LEED_table37.csv"), na.strings=c("","NA"))[,c(1:2,7)] %>% 
+  # read.csv(paste0(root_data,"/LEED_table37_region_10_Dec2021.csv"), na.strings=c("","NA"))[,c(1:2,7)] %>%  
+  fill(Quarter) %>%
+  rename(area=Territorial.authority,
+         med_inc=Median.earnings.of.full.quarters.jobs) %>% 
+  filter(med_inc!="..") %>% 
+  mutate(area=str_trim(area),
+         area=gsub("district","District",area),
+         area=gsub("city","City",area),
+         area=gsub(" \\(modified\\)","",area),
+         area=gsub("Total territorial authority","New Zealand",area),
+         area=gsub("Wanganui District","Whanganui District",area),
+         med_inc=as.numeric(med_inc),
+         date=as.Date(paste0(Quarter,"-01"),format="%b-%y-%d"),
+         date=date_to_qtr(date),
+         source="LEED",
+         level=ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")) %>% 
+  select(-Quarter) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=med_inc) %>% #quarterly income
+  ungroup()
+
+leed_reg <- read.csv(paste0(root_data,"/LEED_table5.csv"), na.strings=c("","NA"))[,c(1:2,7)] %>%
+  fill(Quarter) %>%
+  rename(area=Region,
+         med_inc=Median.earnings.of.full.quarters.jobs) %>% 
+  filter(med_inc!="..") %>% 
+  mutate(area=paste0(str_trim(area), " Region"),
+         area=gsub("Manawatu-Wanganui Region","Manawatu-Whanganui Region",area),
+         med_inc=as.numeric(med_inc),
+         date=as.Date(paste0(Quarter,"-01"),format="%b-%y-%d"),
+         date=date_to_qtr(date),
+         source="LEED",
+         level="Regional Council") %>% 
+  select(-Quarter) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=med_inc) %>%  #quarterly income
+  ungroup() %>% 
+  filter(area != "Total Region Region")
+
+leed <- rbind(leed_ta, leed_reg) %>% 
+  group_by(area) %>% #Remove incomplete series (Auckland old TAs)
+  mutate(max_date=max(date),
+         min_date=min(date)) %>%
+  ungroup() %>% 
+  filter(max_date==max(date),
+         min_date==min(date)) %>% 
+  select(-c(max_date,min_date)) %>% 
+  rename(value=med_inc) %>%
+  filter(date >= as.Date("2001-03-31")) #remove prior to 2001 Census
+
+#5.2 More recent quarters from Business Employment Statistics - https://www.stats.govt.nz/methods/introducing-a-new-business-employment-statistics-release
+# https://www.stats.govt.nz/information-releases/employment-indicators-september-2021
+
+bus_emp2 <- bus_emp %>% 
+  filter(Series_title_2 =="Total Industry"|
+    Group == "Territorial authority by employment variable" & Series_title_2 !="Auckland"|
+    Group %in% c("Region by employment variable"),
+         Series_title_1 %in% c("Filled jobs", "Total earnings"),
+         Series_title_2 != "Area Outside Territorial Authority",
+    Series_title_3 == "Actual") %>% 
+  mutate(Series_title_2 = ifelse(Group == "Region by employment variable", paste0(Series_title_2," Region"), Series_title_2)) %>% 
+  select(Period,Data_value,Series_title_1,Series_title_2) %>% 
+  mutate(date=as.Date(ifelse(as.character(substr(Period, 6, 7))!="1",paste0(Period,".01"),paste0(as.character(Period),"0.01")),"%Y.%m.%d"),
+         date=date_to_month(date)) %>% 
+  pivot_wider(names_from = Series_title_1, values_from = Data_value) %>% 
+  select(-Period) %>% 
+  setNames(c("area","date","jobs","earnings")) %>% 
+   mutate(earnings=earnings*1000000,
+    ave_earnings=(earnings/jobs), #average earnings, per quarter
+    area=recode(area, 'Total Industry'="New Zealand")) %>% 
+  group_by(area) %>% 
+  arrange(date) %>% 
+  mutate(med_inc=ave_earnings, # quarterly
+         source="Business employment data, mean earnings") %>% 
+  select(date,area, med_inc,area,source) %>% 
+  rename(value=med_inc) %>% 
+  mutate(level=ifelse(grepl("Region",area),"Regional Council",
+                      ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")))
+
+bus_emp3 <- bus_emp2 %>% 
+  filter(date >= max(leed$date)) %>%
+  arrange(date) %>% 
+  mutate(index=value/value[1]) %>% 
+  select(date,index,area, level) %>% 
+  filter(date != max(leed$date))
+
+#5.3 Estimate census quarterly income
+
+ccq <- cc %>% 
+  mutate(value=value/4) # quarterly estimate
+
+#5.4 Interpolate HES/Census benchmarks with LEED and business employment data
+
+polate <- function (unit_in, inc_type_in, tenure_in) {
+  
+  combo1 <- ccq %>% 
+  filter(unit==unit_in, inc_type==inc_type_in,
+         tenure==tenure_in) %>% 
+  select(-c(unit,inc_type,tenure)) %>% 
+  rbind(leed) %>% 
+  pivot_wider (names_from=source, values_from=value) %>% 
+  group_by(area) %>%
+  arrange(date) %>%
+  mutate(ratio= Census/LEED, #calibration factor
+         ratio=ifelse(is.na(ratio),na.approx(ratio),ratio), #interpolate between Censuses
+         ratio=ifelse(date <= as.Date("2018-03-31"), ratio, ratio[date==as.Date("2018-03-31")]), #extrapolate beyond
+         LEED2 = LEED*ratio)
+
+combo2 <- rbind(combo1,bus_emp3) %>% 
+  group_by(area) %>% 
+  mutate(LEED3=ifelse(is.na(LEED2),LEED2[date==max(leed$date)]*index,LEED2),
+         source=ifelse(date <= as.Date("2018-03-31"),"LEED interpolated",
+                       ifelse(date > as.Date("2018-03-31") & date <= max(leed$date), 
+                              "LEED extrapolated", "Tax extrapolated"))) %>% 
+  rename(value=LEED3) %>% 
+  ungroup() %>% 
+  select(area,date,source,value) %>% 
+  mutate(unit=unit_in, 
+         inc_type=inc_type_in,
+         tenure=tenure_in)
+
+combo2
+
+}
+
+combo_polate <- c()
+
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Disposable", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Disposable", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Gross", tenure_in="All"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Disposable", tenure_in="All"))
+
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Household", inc_type_in="Disposable", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Personal", inc_type_in="Disposable", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Gross", tenure_in="Renters"))
+combo_polate <- rbind(combo_polate, polate(unit_in="Equivalised Household", inc_type_in="Disposable", tenure_in="Renters"))
+
+HUD_mod_inc_q <- combo_polate %>% 
+  mutate(vintage=Sys.Date(),
+         source=factor(source, levels=c("LEED interpolated","LEED extrapolated","Tax extrapolated")),
+         inc_freq="quarterly",
+         level=ifelse(grepl("Region",area),"Regional Council",
+                      ifelse(area=="New Zealand","New Zealand","Territorial Local Authority")))
+
+#5.5 Combine quarterly and annual data
+
+HUD_mod_inc <- rbind(HUD_mod_inc_a, HUD_mod_inc_q) %>% 
+  mutate(series=paste0("Median ",inc_freq," ", str_to_lower(unit), " ", str_to_lower(inc_type), " income for ", str_to_lower(tenure)))
+
+
+#5.6 Plot for NZ
+
+HUD_mod_inc_NZ <- filter(HUD_mod_inc, area=="New Zealand", inc_freq=="quarterly") %>%
+  group_by(tenure,unit) %>% 
+  mutate(source_max=lead(date))
+
+
+p5 <- ggplot(HUD_mod_inc_NZ, aes(date,value))+
+  geom_rect(aes(xmin = date, xmax = source_max, ymin = -Inf, ymax = Inf, fill = source), alpha=.3)+
+  geom_point(data=NZ_benchmarks, aes(y=value/4, shape="benchmarks",colour=inc_type), size=2)+
+  geom_line(aes(colour=inc_type), size=.2)+
+  geom_smooth(se=F, aes(colour=inc_type), size=.8)+
+  facet_grid(tenure~unit)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
+  # scale_fill_manual(values=c("grey85","grey55","#00a0d5"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=19, name="")+
+  labs(title="Modelled timeseries: quarterly",
+       subtitle="New Zealand, Income sharing unit by tenure",
+       y="", x="",
+       caption="Thin lines: original series
+       Thick lines: LOESS trend
+       \nSource: Stats NZ and author's calculations")+
+  theme(legend.position="bottom")+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+p5
+
+```
+
+
+Median annual household disposable income by regional council is shown in Figure 6, and by territorial authority in Figure 7, as an examples of regional timeseries.
+
+
+### Figure 6 {-}
+
+```{r, fig.height=8}
+#6. Plot of regional timeseries
+
+HUD_mod_inc_reg <- filter(HUD_mod_inc, level=="Regional Council", inc_freq=="annual",
+                          inc_type=="Disposable", tenure=="All", unit=="Household") %>% 
+  group_by(area) %>% 
+  mutate(source_max=lead(date),
+         area=gsub(" Region","",area))
+
+Reg_benchmarks2 <- filter(Reg_benchmarks, inc_type=="Disposable", tenure=="All", unit=="Household") %>% 
+  mutate(area=gsub(" Region","",area))
+
+p6 <- ggplot(HUD_mod_inc_reg, aes(date,value))+
+  geom_rect(aes(xmin = date, xmax = source_max, ymin = -Inf, ymax = Inf, fill = source), alpha=.4)+
+  geom_line(colour=palc[1])+
+  geom_point(data=Reg_benchmarks2, aes(y=value, shape="benchmarks"), size=2)+
+  # geom_point(data=HES_hh_reg, aes(y=value, shape="Household Economic Survey"), size=2)+
+  facet_wrap(~area)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey55","#00a0d5"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=c(19,3), name="")+
+  labs(title="Modelled timeseries: Regional Council",
+       subtitle="Median annual household disposable income, for all households",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom")+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+p6
+
+```
+
+### Figure 7 {-}
+
+```{r, fig.width = 10, fig.height = 14}
+
+#7. Plot of territorial authority timeseries
+
+HUD_mod_inc_ta <- filter(HUD_mod_inc, level=="Territorial Local Authority", inc_freq=="annual",
+                          inc_type=="Disposable", tenure=="All", unit=="Household",
+                         area !="Chatham Islands Territory") %>% 
+  group_by(area) %>% 
+  mutate(source_max=lead(date))
+
+TA_benchmarks2 <- filter(TA_benchmarks, inc_type=="Disposable", tenure=="All", unit=="Household") 
+
+p7 <- ggplot(HUD_mod_inc_ta, aes(date,value))+
+  geom_rect(aes(xmin = date, xmax = source_max, ymin = -Inf, ymax = Inf, fill = source), alpha=.41)+
+  geom_line(colour=palc[1])+
+  geom_point(data=TA_benchmarks2, aes(y=value, shape="benchmarks"), size=1)+
+  facet_wrap(~area, labeller = labeller(area = label_wrap_gen(18)), ncol=5)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey55","#00a0d5"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=19, name="")+
+  labs(title="Modelled timeseries: Territorial Local Authority",
+       subtitle="Median annual household disposable income, for all households",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle = 90))+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+p7
+
+```
+
+
+```{r, fig.width = 10, fig.height = 14}
+#8. Create monthly series
+
+#8.1. Create "missing months' from quarterly series
+
+months <- seq(min(HUD_mod_inc$date)+days(1),max(HUD_mod_inc$date)+days(1), by="month")
+
+months_missing <- as.Date(setdiff(months,unique(HUD_mod_inc$date)+days(1)))-days(1)
+
+months_missing_df <- data.frame(date=months_missing)
+
+#8.2 Add missing dates, then linear interpolation of values
+
+HUD_mod_inc_monthly <- HUD_mod_inc %>%
+  ungroup() %>% 
+  filter(area != "Chatham Islands Territory") %>% 
+  select(-c(date,value,source)) %>% 
+  unique() %>% 
+  full_join(months_missing_df, by = character()) %>% #cross-join to create all possible combinations of income types
+  mutate(value=NA,
+         source=NA) %>% 
+  rbind(filter(HUD_mod_inc, area != "Chatham Islands Territory")) %>% 
+  arrange(date) %>%
+  group_by(area,unit,inc_type,tenure,inc_freq) %>% 
+  fill(source, .direction="up") %>%
+  mutate(value=na.approx(value))
+
+#8.3 Output the final series
+write.csv(HUD_mod_inc_monthly,"Modelled_income.csv",row.names=F)
+
+#8.4 check monthly series compared with quarterly
+
+HUD_mod_inc_ta2 <- HUD_mod_inc_ta %>% 
+  mutate(freq="quarterly") %>% 
+  filter(date >= as.Date("2010-01-01"))
+
+TA_benchmarks3 <- TA_benchmarks2 %>% 
+  filter(date >= as.Date("2010-01-01"))
+
+HUD_mod_inc_ta_monthly <- filter(HUD_mod_inc_monthly, level=="Territorial Local Authority", inc_freq=="annual",
+                          inc_type=="Disposable", tenure=="All", unit=="Household",
+                         area !="Chatham Islands Territory") %>% 
+  group_by(area) %>% 
+  mutate(source_max=lead(date),
+         freq="monthly") %>% 
+  filter(date >= as.Date("2010-01-01"))
+
+p8 <- ggplot(HUD_mod_inc_ta2, aes(date,value))+
+  geom_rect(aes(xmin = date, xmax = source_max, ymin = -Inf, ymax = Inf, fill = source), alpha=.4)+
+  geom_line(aes(colour=freq))+
+  geom_line(data=HUD_mod_inc_ta_monthly, aes(colour=freq))+
+  geom_point(data=TA_benchmarks3, aes(y=value, shape="benchmarks"), size=1)+
+  facet_wrap(~area, labeller = labeller(area = label_wrap_gen(18)), ncol=5)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=19, name="")+
+  labs(title="Modelled timeseries: Territorial Local Authority",
+       subtitle="Median annual household disposable income, for all households",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle = 90))+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+# p8
+
+```
+
+# Appendix {-}
+
+### Figure A1: Comparison of modelled timeseries with HES {-}
+
+```{r}
+
+#9. Compare modelled timeseries with Household Economic Survey (HES) estimates
+
+HUD_mod_inc_NZ_hhdis <- filter(HUD_mod_inc_a, area=="New Zealand", tenure=="All", unit=="Household") %>%
+  group_by(tenure,unit) %>% 
+  mutate(source_max=lead(date))
+
+
+NZ_benchmarks_hhdis <- NZ_benchmarks %>% 
+  filter(tenure=="All", unit=="Household")
+
+#9.1 Household Economic Survey (HES) estimates 2007-2018
+
+HES_inc2 <- HES_hh %>% 
+  rbind(HES_per) %>% 
+  gather(inc_type,value,-c(Year,RegCouncil,HouseholdTenure,unit)) %>% 
+  filter(RegCouncil == "Total") %>% 
+  group_by(inc_type,HouseholdTenure,unit) %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31")),
+    x=1:n(),
+         value_smooth=predict(loess(value ~ x, span=0.5)),
+    tenure=recode(HouseholdTenure,
+                  "Dwelling not owned, rent payments made"="Renters",
+                  "Total"="All")) %>% #smooth series
+  filter(inc_type %in% c("MedianTotalRegular","MedianDispIncome")) %>% 
+  ungroup() %>% 
+  select(unit,tenure,inc_type,value,date,value_smooth) %>% 
+  gather(trend_type,value,-c(unit,tenure,inc_type,date)) %>% 
+  mutate(trend_type=recode(trend_type,
+                                  'value'="actual",
+                                  'value_smooth'="smoothed"),
+         inc_type=recode(inc_type,
+                         "MedianTotalRegular"="Gross",
+                         "MedianDispIncome"="Disposable"))
+
+HES_inc_hhdis <- HES_inc2 %>% 
+  filter(tenure=="All", unit=="Household",
+         trend_type=="actual") %>% 
+  mutate(date=date-90) %>% 
+  select(date,inc_type,value)
+
+#9.2 Add most recent HES estimates for 2019-2020 (https://www.stats.govt.nz/information-releases/household-income-and-housing-cost-statistics-year-ended-june-2020)
+
+
+download.file("https://www.stats.govt.nz/assets/Uploads/Household-income-and-housing-cost-statistics/Household-income-and-housing-cost-statistics-Year-ended-June-2020/Download-data-corrected/Household-income-and-housing-cost-statistics-year-ended-june-2020-corrected-CSV.zip",
+              destfile = "housing_costs_2020.zip")
+
+HES_inc_2020 <- read.csv(unz("housing_costs_2020.zip","inc_t4_datafile_2020.csv")) %>% 
+  filter( MsCode %in% c("M002"), #median
+          IncCode %in% c("I001","I002"), #gross or disposable
+          RegCode %in% c("R013")) %>% #NZ
+  select(Estimate,IncCode) %>% 
+  mutate(date=as.Date("2020-01-01"),
+         inc_type=ifelse(IncCode=="I001","Gross","Disposable"),
+         value=Estimate) %>% 
+  select(date,inc_type,value)
+
+HES_inc_hhdis2 <- HES_inc_hhdis %>% 
+  rbind(HES_inc_2020) #add 2020 data
+
+#9.3 Compare NZ modelled timeseries with HES estimates
+
+pA1 <- ggplot(HUD_mod_inc_NZ_hhdis, aes(date,value))+
+  geom_point(data=NZ_benchmarks_hhdis, aes(shape="benchmarks",colour=inc_type), size=2)+
+  geom_line(aes(colour=inc_type))+
+  geom_line(data=HES_inc_hhdis2, aes(linetype="Household Economic Survey", colour=inc_type), show.legend = F)+
+  geom_point(data=HES_inc_hhdis2, aes(shape="Household Economic Survey", colour=inc_type))+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_linetype_manual(values="dotted")+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=c(19,3), name="")+
+  labs(title="Modelled timeseries compared with Household Economic Survey",
+       subtitle="New Zealand, Median household disposable income",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom")+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+pA1
+
+```
+
+### Figure A2: Regional comparison of modelled timeseries with HES {-}
+
+```{r, fig.height=8}
+
+#10. Compare modelled timeseries with Household Economic Survey (HES) estimates, by Regional Council
+
+#10.1 HES series 2007-2019
+HES_hh_reg <- HES_hh %>% 
+  filter(HouseholdTenure=="Total") %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
+  select(RegCouncil,date,MedianDispIncome) %>% 
+  rename(value=MedianDispIncome,
+         area=RegCouncil) %>% 
+  filter(area %in% unique(HUD_mod_inc_reg$area)) %>% 
+  select(date,value,area)
+
+#10.2 HES2020 series
+HES_inc_2020_r <- read.csv(unz("housing_costs_2020.zip","inc_t4_datafile_2020.csv")) %>% 
+  filter( MsCode %in% c("M002"), #median
+          IncCode %in% c("I002"), #disposable
+          RegCode %in% c("R001","R002","R003",
+                         "R004","R006","R007",
+                         "R008","R010","R011",
+                         "R012")) %>% #comparable regions
+  select(Estimate,RegCode) %>% 
+  mutate(date=as.Date("2020-01-01"),
+         inc_type="Disposable",
+         value=Estimate,
+         area=recode(RegCode,
+                     "R001"="Northland",
+                     "R002"="Auckland",
+                     "R003"="Waikato",
+                     "R004"="Bay of Plenty",
+                     "R006"="Taranaki",
+                     "R007"="Manawatu-Whanganui",
+                     "R008"="Wellington",
+                     "R010"="Canterbury",
+                     "R011"="Otago",
+                     "R012"="Southland" )) %>% 
+  select(date,value,area)
+
+HES_hh_reg2 <- HES_hh_reg %>% 
+  rbind(HES_inc_2020_r)
+
+HUD_mod_inc_reg2 <- HUD_mod_inc_reg %>% 
+  filter(area %in% unique(HES_hh_reg$area)) 
+
+Reg_benchmarks3 <- Reg_benchmarks2 %>% 
+  filter(area %in% unique(HES_hh_reg$area))
+
+pA2 <- ggplot(HUD_mod_inc_reg2, aes(date,value))+
+  geom_line(colour=palc[1])+
+  geom_point(data=Reg_benchmarks3, aes(y=value, shape="benchmarks"), size=2)+
+  geom_point(data=HES_hh_reg2, aes(y=value, shape="Household Economic Survey"), size=2)+
+  geom_line(data=HES_hh_reg2, aes(y=value), size=.3, colour="grey80")+
+  facet_wrap(~area, ncol=2)+
+  theme_ab()+
+  scale_colour_manual(values=palc,name="")+
+  scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
+  scale_size_manual(values=c(.7,1,.2))+
+  scale_y_continuous(labels=dollar)+
+  scale_shape_manual(values=c(19,3), name="")+
+  labs(title="Modelled timeseries: Regional Council",
+       subtitle="Median annual household disposable income, for all households",
+       y="", x="",
+       caption="Source: Stats NZ and author's calculations")+
+  theme(legend.position="bottom")+
+  guides(fill = guide_legend(ncol=1),
+         colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
+
+pA2
+
+
+```
+
+\newpage
+
+## Links to input data sources {-}
+
+### Household Economic Survey (HES) {-}
+
+**Years ending June 2007--2019**
+https://catalogue.data.govt.nz/dataset/hes-gross-and-disposable-income-timeseries-2006-07-2018-19
+
+**Years ending June 2019--2020** 
+https://www.stats.govt.nz/information-releases/household-income-and-housing-cost-statistics-year-ended-june-2020
+
+### Censuses of Population and Dwellings (Census) {-}
+
+https://catalogue.data.govt.nz/dataset/census-household-and-personal-income-series
+
+### Linked Employer-Employee Data (LEED) {-}
+
+https://www.stats.govt.nz/information-releases/linked-employer-employee-data-september-2020-quarter-nz-stat-tables
+
+### Business Employment Data {-}
+
+https://www.stats.govt.nz/information-releases/employment-indicators-september-2021
+
