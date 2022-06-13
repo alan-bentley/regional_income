@@ -1,1 +1,9 @@
 Copy of publicly available data in .csv format
+
+Source:
+
+LEED Table 35: https://nzdotstat.stats.govt.nz/wbos/Index.aspx?DataSetCode=TABLECODE7005
+
+LEED Table 37: https://nzdotstat.stats.govt.nz/wbos/Index.aspx?DataSetCode=TABLECODE7005
+
+HLFS: https://nzdotstat.stats.govt.nz/wbos/Index.aspx?DataSetCode=TABLECODE7480
