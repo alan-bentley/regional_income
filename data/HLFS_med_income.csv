@@ -1,0 +1,290 @@
+Year,Region,Income
+1998,Northland Region,575
+,Auckland Region,900
+,Waikato Region,729
+,Bay of Plenty Region,701
+,Gisborne/Hawkes Bay Regions,628
+,Taranaki Region,679
+,Manawatu-Wanganui Region,608
+,Wellington Region,910
+,Tasman/Nelson/Marlborough/West Coast Regions,662
+,Canterbury Region,702
+,Otago Region,690
+,Southland Region,786
+1999,Northland Region,581
+,Auckland Region,914
+,Waikato Region,720
+,Bay of Plenty Region,767
+,Gisborne/Hawkes Bay Regions,744
+,Taranaki Region,649
+,Manawatu-Wanganui Region,643
+,Wellington Region,959
+,Tasman/Nelson/Marlborough/West Coast Regions,690
+,Canterbury Region,774
+,Otago Region,675
+,Southland Region,750
+2000,Northland Region,593
+,Auckland Region,921
+,Waikato Region,770
+,Bay of Plenty Region,692
+,Gisborne/Hawkes Bay Regions,750
+,Taranaki Region,686
+,Manawatu-Wanganui Region,614
+,Wellington Region,950
+,Tasman/Nelson/Marlborough/West Coast Regions,745
+,Canterbury Region,760
+,Otago Region,654
+,Southland Region,702
+2001,Northland Region,634
+,Auckland Region,955
+,Waikato Region,806
+,Bay of Plenty Region,729
+,Gisborne/Hawkes Bay Regions,734
+,Taranaki Region,729
+,Manawatu-Wanganui Region,719
+,Wellington Region,1026
+,Tasman/Nelson/Marlborough/West Coast Regions,825
+,Canterbury Region,831
+,Otago Region,734
+,Southland Region,850
+2002,Northland Region,660
+,Auckland Region,1034
+,Waikato Region,864
+,Bay of Plenty Region,767
+,Gisborne/Hawkes Bay Regions,786
+,Taranaki Region,774
+,Manawatu-Wanganui Region,711
+,Wellington Region,1036
+,Tasman/Nelson/Marlborough/West Coast Regions,859
+,Canterbury Region,865
+,Otago Region,775
+,Southland Region,895
+2003,Northland Region,761
+,Auckland Region,1030
+,Waikato Region,896
+,Bay of Plenty Region,819
+,Gisborne/Hawkes Bay Regions,824
+,Taranaki Region,900
+,Manawatu-Wanganui Region,724
+,Wellington Region,1017
+,Tasman/Nelson/Marlborough/West Coast Regions,863
+,Canterbury Region,952
+,Otago Region,769
+,Southland Region,936
+2004,Northland Region,767
+,Auckland Region,1072
+,Waikato Region,882
+,Bay of Plenty Region,863
+,Gisborne/Hawkes Bay Regions,852
+,Taranaki Region,850
+,Manawatu-Wanganui Region,875
+,Wellington Region,1050
+,Tasman/Nelson/Marlborough/West Coast Regions,863
+,Canterbury Region,959
+,Otago Region,815
+,Southland Region,900
+2005,Northland Region,850
+,Auckland Region,1120
+,Waikato Region,997
+,Bay of Plenty Region,915
+,Gisborne/Hawkes Bay Regions,900
+,Taranaki Region,993
+,Manawatu-Wanganui Region,909
+,Wellington Region,1074
+,Tasman/Nelson/Marlborough/West Coast Regions,946
+,Canterbury Region,1074
+,Otago Region,863
+,Southland Region,960
+2006,Northland Region,945
+,Auckland Region,1166
+,Waikato Region,1074
+,Bay of Plenty Region,959
+,Gisborne/Hawkes Bay Regions,1019
+,Taranaki Region,1055
+,Manawatu-Wanganui Region,910
+,Wellington Region,1168
+,Tasman/Nelson/Marlborough/West Coast Regions,1051
+,Canterbury Region,1106
+,Otago Region,960
+,Southland Region,1012
+2007,Northland Region,960
+,Auckland Region,1218
+,Waikato Region,1128
+,Bay of Plenty Region,1108
+,Gisborne/Hawkes Bay Regions,1072
+,Taranaki Region,1151
+,Manawatu-Wanganui Region,973
+,Wellington Region,1310
+,Tasman/Nelson/Marlborough/West Coast Regions,1130
+,Canterbury Region,1167
+,Otago Region,1036
+,Southland Region,1130
+2008,Northland Region,911
+,Auckland Region,1304
+,Waikato Region,1200
+,Bay of Plenty Region,1110
+,Gisborne/Hawkes Bay Regions,1125
+,Taranaki Region,1199
+,Manawatu-Wanganui Region,1038
+,Wellington Region,1365
+,Tasman/Nelson/Marlborough/West Coast Regions,1151
+,Canterbury Region,1222
+,Otago Region,1039
+,Southland Region,1167
+2009,Northland Region,1001
+,Auckland Region,1247
+,Waikato Region,1197
+,Bay of Plenty Region,1151
+,Gisborne/Hawkes Bay Regions,1105
+,Taranaki Region,1216
+,Manawatu-Wanganui Region,1040
+,Wellington Region,1293
+,Tasman/Nelson/Marlborough/West Coast Regions,1177
+,Canterbury Region,1203
+,Otago Region,1123
+,Southland Region,1107
+2010,Northland Region,972
+,Auckland Region,1244
+,Waikato Region,1151
+,Bay of Plenty Region,1186
+,Gisborne/Hawkes Bay Regions,1036
+,Taranaki Region,1189
+,Manawatu-Wanganui Region,1050
+,Wellington Region,1343
+,Tasman/Nelson/Marlborough/West Coast Regions,1176
+,Canterbury Region,1231
+,Otago Region,1247
+,Southland Region,1207
+2011,Northland Region,964
+,Auckland Region,1381
+,Waikato Region,1150
+,Bay of Plenty Region,1170
+,Gisborne/Hawkes Bay Regions,1070
+,Taranaki Region,1166
+,Manawatu-Wanganui Region,1025
+,Wellington Region,1367
+,Tasman/Nelson/Marlborough/West Coast Regions,1182
+,Canterbury Region,1212
+,Otago Region,1214
+,Southland Region,1261
+2012,Northland Region,948
+,Auckland Region,1366
+,Waikato Region,1219
+,Bay of Plenty Region,1162
+,Gisborne/Hawkes Bay Regions,1170
+,Taranaki Region,1282
+,Manawatu-Wanganui Region,1074
+,Wellington Region,1406
+,Tasman/Nelson/Marlborough/West Coast Regions,1210
+,Canterbury Region,1247
+,Otago Region,1145
+,Southland Region,1203
+2013,Northland Region,1020
+,Auckland Region,1406
+,Waikato Region,1244
+,Bay of Plenty Region,1238
+,Gisborne/Hawkes Bay Regions,1129
+,Taranaki Region,1343
+,Manawatu-Wanganui Region,1083
+,Wellington Region,1477
+,Tasman/Nelson/Marlborough/West Coast Regions,1206
+,Canterbury Region,1350
+,Otago Region,1305
+,Southland Region,1330
+2014,Northland Region,1043
+,Auckland Region,1458
+,Waikato Region,1211
+,Bay of Plenty Region,1223
+,Gisborne/Hawkes Bay Regions,1152
+,Taranaki Region,1419
+,Manawatu-Wanganui Region,1145
+,Wellington Region,1623
+,Tasman/Nelson/Marlborough/West Coast Regions,1274
+,Canterbury Region,1526
+,Otago Region,1393
+,Southland Region,1399
+2015,Northland Region,1002
+,Auckland Region,1534
+,Waikato Region,1314
+,Bay of Plenty Region,1300
+,Gisborne/Hawkes Bay Regions,1250
+,Taranaki Region,1400
+,Manawatu-Wanganui Region,1050
+,Wellington Region,1534
+,Tasman/Nelson/Marlborough/West Coast Regions,1331
+,Canterbury Region,1535
+,Otago Region,1391
+,Southland Region,1359
+2016,Northland Region,1227
+,Auckland Region,1686
+,Waikato Region,1486
+,Bay of Plenty Region,1425
+,Gisborne/Hawkes Bay Regions,1379
+,Taranaki Region,1387
+,Manawatu-Wanganui Region,1227
+,Wellington Region,1726
+,Tasman/Nelson/Marlborough/West Coast Regions,1287
+,Canterbury Region,1598
+,Otago Region,1455
+,Southland Region,1518
+2017,Northland Region,1151
+,Auckland Region,1784
+,Waikato Region,1498
+,Bay of Plenty Region,1387
+,Gisborne/Hawkes Bay Regions,1404
+,Taranaki Region,1393
+,Manawatu-Wanganui Region,1240
+,Wellington Region,1900
+,Tasman/Nelson/Marlborough/West Coast Regions,1421
+,Canterbury Region,1588
+,Otago Region,1486
+,Southland Region,1282
+2018,Northland Region,1343
+,Auckland Region,1937
+,Waikato Region,1675
+,Bay of Plenty Region,1642
+,Gisborne/Hawkes Bay Regions,1448
+,Taranaki Region,1432
+,Manawatu-Wanganui Region,1358
+,Wellington Region,1958
+,Tasman/Nelson/Marlborough/West Coast Regions,1511
+,Canterbury Region,1681
+,Otago Region,1720
+,Southland Region,1436
+2019,Northland Region,1311
+,Auckland Region,1967
+,Waikato Region,1726
+,Bay of Plenty Region,1657
+,Gisborne/Hawkes Bay Regions,1522
+,Taranaki Region,1418
+,Manawatu-Wanganui Region,1482
+,Wellington Region,1996
+,Tasman/Nelson/Marlborough/West Coast Regions,1605
+,Canterbury Region,1740
+,Otago Region,1536
+,Southland Region,1553
+2020,Northland Region,1339
+,Auckland Region,1918
+,Waikato Region,1712
+,Bay of Plenty Region,1630
+,Gisborne/Hawkes Bay Regions,1612
+,Taranaki Region,1657
+,Manawatu-Wanganui Region,1435
+,Wellington Region,2072
+,Tasman/Nelson/Marlborough/West Coast Regions,1619
+,Canterbury Region,1738
+,Otago Region,1536
+,Southland Region,1500
+2021,Northland Region,1534
+,Auckland Region,2071
+,Waikato Region,1812
+,Bay of Plenty Region,1806
+,Gisborne/Hawkes Bay Regions,1854
+,Taranaki Region,1842
+,Manawatu-Wanganui Region,1470
+,Wellington Region,2279
+,Tasman/Nelson/Marlborough/West Coast Regions,1591
+,Canterbury Region,1758
+,Otago Region,1618
+,Southland Region,1620
+data extracted on 17 May 2022 23:05 UTC (GMT) from NZ.Stat,,
