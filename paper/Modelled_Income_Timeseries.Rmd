@@ -233,7 +233,9 @@ p1
 ```
 
 
-Shown in Figure 1, gross income is a higher estimate using the HES compared with Census. We smoothed the HES timeseries using a LOESS (locally estimated scatterplot smoothing) regression to reduce HES sampling errors; HES 2018/19 data was not used due to a discontinuity in the source of income data. The HES series overlap with the the 2013 and 2018 Censuses (the income reference period is assumed comparable: Censuses are conducted in March; HES is conducted continuously, reported for each year to June). Calculating the average ratio of HES to Census gross income estimates produces gross income *calibration factors* (see Table 2 and Figure 2).  These have been calculated for household and personal income, by tenure type (renters and all households).
+Shown in Figure 1, gross income is usually a higher estimate using the HES compared with Census (using revised HES[^1], published in February 2020, household income for all tenures is slightly lower in 2013 using HES, but was higher in 2018, compared with comparable Census estimates). We smoothed the HES timeseries using a LOESS (locally estimated scatterplot smoothing) regression to reduce HES sampling errors. The HES series overlap with the the 2013 and 2018 Censuses (the income reference period is assumed comparable: Censuses are conducted in March; HES is conducted continuously, reported for each year to June). Calculating the average ratio of HES to Census gross income estimates produces gross income *calibration factors* (see Table 2 and Figure 2).  These have been calculated for household and personal income, by tenure type (renters and all households).
+
+[^1]: Revisions to the HES income estimator are discussed in the appendix. Estimates of different vintages are shown in appendix Figure A1.
 
 Replacing HES gross income with disposable income we can calculate analogous *calibration and coverage factors* for disposable income.
 
@@ -1152,11 +1154,13 @@ pA1
 
 ```
 
-Figure A1 shows a comparison of the final modelled income timeseries for New Zealand with the model benchmarks and estimates from the Household Economic Survey.[^1] 
+Figure A1 shows a comparison of the final modelled income timeseries for New Zealand with the model benchmarks and estimates from the Household Economic Survey.[^2] 
 
-[^1]: Household gross (before tax) 'median income from all sources collected' from the Household Labour Force Survey (HLFS), annualised from a weekly amount, is shown as a further comparison.
+[^2]: Household gross (before tax) 'median income from all sources collected' from the Household Labour Force Survey (HLFS), annualised from a weekly amount, is shown as a further comparison.
 
-A methodology change in the income estimator used in the Household Economic Survey for estimates from the year end June 2019 complicates timeseries comparisons. The new methodology uses income data from linked government administrative records to replace some sources of income for eligible individuals (labelled as "HES-admin" in Figure A1). According to Stats NZ's [*Changes to the household economic survey 2018/19*](https://www.stats.govt.nz/methods/changes-to-the-household-economic-survey-201819) the new estimates of household income will be more precise, so the revised estimates are used in the calibration factors shown in Table 2. Figure A1 also shows more recent revisions to the first published estimates for the year to June 2019 and 2020 (these are due to the availability of additional administrative data, and revisions to population estimates used to calculate the survey weights).
+A methodology change in the income estimator used in the Household Economic Survey for estimates from the year end June 2019 complicates timeseries comparisons. The new methodology uses income data from linked government administrative records to replace some sources of income for eligible individuals (labelled as "HES-admin" in Figure A1). According to Stats NZ's [*Changes to the household economic survey 2018/19*](https://www.stats.govt.nz/methods/changes-to-the-household-economic-survey-201819)[^3] the new estimates of household income will be more precise, so the revised estimates are used in the calibration factors shown in Table 2. Figure A1 also shows more recent revisions to the first published estimates for the year to June 2019 and 2020 (these are due to the availability of additional administrative data, and revisions to population estimates used to calculate the survey weights).
+
+[^3]: https://www.stats.govt.nz/methods/changes-to-the-household-economic-survey-201819
 
 Figure A2 shows a comparison of the final modelled income timeseries for selected regional councils with estimates from the Household Economic Survey. Unfortunately, backcast series using the new methodology are not available by region, so there is a break in the timeseries between the HES estimates between the year to June 2018 and year to June 2019
 
