@@ -306,7 +306,7 @@ p2 <- ggplot(HES_inc2, aes(date,value, colour=inc_type))+
        subtitle="All tenures, household income",
        y="", x="",
        caption="Smoothed HES estimates (LOESS trends) \n
-       Source: Stats NZ and HUD calculations")+
+       Source: Stats NZ and author's calculations")+
   theme(panel.grid.major = element_blank(),
     panel.grid.minor = element_blank())
 
@@ -855,7 +855,8 @@ p6 <- ggplot(HUD_mod_inc_reg, aes(date,value))+
        subtitle="Median annual household disposable income, for all households",
        y="", x="",
        caption="Source: Stats NZ and author's calculations")+
-  theme(legend.position="bottom")+
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle = 90))+
   guides(fill = guide_legend(ncol=1),
          colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
 
@@ -1171,26 +1172,39 @@ Figure A2 shows a comparison of the final modelled income timeseries for selecte
 #10. Compare modelled timeseries with Household Economic Survey (HES) estimates, by Regional Council
 
 #10.1 HES series 2007-2019
-HES_hh_reg <- HES_hh %>% 
+HES_hh_reg_a <- HES_hh %>% 
   filter(HouseholdTenure=="Total") %>% 
   mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
   select(RegCouncil,date,MedianDispIncome) %>% 
   rename(value=MedianDispIncome,
          area=RegCouncil) %>% 
   filter(area %in% unique(HUD_mod_inc_reg$area)) %>% 
-  select(date,value,area)
+  select(date,value,area) %>% 
+  mutate(inc_type="Disposable")
+
+HES_hh_reg_b <- HES_hh %>% 
+  filter(HouseholdTenure=="Total") %>% 
+  mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
+  select(RegCouncil,date,MedianTotalRegular) %>% 
+  rename(value=MedianTotalRegular,
+         area=RegCouncil) %>% 
+  filter(area %in% unique(HUD_mod_inc_reg$area)) %>% 
+  select(date,value,area) %>% 
+  mutate(inc_type="Gross")
+
+HES_hh_reg <- rbind(HES_hh_reg_a, HES_hh_reg_b)
 
 #10.2 HES2020 series
 HES_inc_2020_r <- read.csv(unz("housing_costs_2020.zip","inc_t4_datafile_2020.csv")) %>% 
   filter( MsCode %in% c("M002"), #median
-          IncCode %in% c("I002"), #disposable
+          IncCode %in% c("I001","I002"), #gross or disposable
           RegCode %in% c("R001","R002","R003",
                          "R004","R006","R007",
                          "R008","R010","R011",
                          "R012")) %>% #comparable regions
-  select(Estimate,RegCode) %>% 
+  select(Estimate,RegCode, IncCode) %>% 
   mutate(date=as.Date("2020-01-01"),
-         inc_type="Disposable",
+         inc_type=ifelse(IncCode=="I001","Gross","Disposable"),
          value=Estimate,
          area=recode(RegCode,
                      "R001"="Northland",
@@ -1203,20 +1217,20 @@ HES_inc_2020_r <- read.csv(unz("housing_costs_2020.zip","inc_t4_datafile_2020.cs
                      "R010"="Canterbury",
                      "R011"="Otago",
                      "R012"="Southland" )) %>% 
-  select(date,value,area)
+  select(date,value,area,inc_type)
 
 #HES2021 series
 
 HES_inc_2021_r <- read.csv(unz("housing_costs_2021.zip","inc_t4_datafile_2021.csv")) %>% 
   filter( MsCode %in% c("M002"), #median
-          IncCode %in% c("I002"), #disposable
+          IncCode %in% c("I001","I002"), #gross or disposable
           RegCode %in% c("R001","R002","R003",
                          "R004","R006","R007",
                          "R008","R010","R011",
                          "R012")) %>% #comparable regions
-  select(Estimate,RegCode) %>% 
+  select(Estimate,RegCode, IncCode) %>% 
   mutate(date=as.Date("2021-01-01"),
-         inc_type="Disposable",
+         inc_type=ifelse(IncCode=="I001","Gross","Disposable"),
          value=Estimate,
          area=recode(RegCode,
                      "R001"="Northland",
@@ -1229,18 +1243,33 @@ HES_inc_2021_r <- read.csv(unz("housing_costs_2021.zip","inc_t4_datafile_2021.cs
                      "R010"="Canterbury",
                      "R011"="Otago",
                      "R012"="Southland" )) %>% 
-  select(date,value,area)
+  select(date,value,area,inc_type)
 
 
 HES_hh_reg2 <- HES_hh_reg %>% 
   rbind(HES_inc_2020_r) %>% 
   rbind(HES_inc_2021_r)
 
-HUD_mod_inc_reg2 <- HUD_mod_inc_reg %>% 
+
+HUD_mod_inc_reg2 <- filter(HUD_mod_inc, level=="Regional Council", inc_freq=="annual",
+                          # inc_type=="Disposable", 
+                          tenure=="All", unit=="Household") %>% 
+  group_by(area) %>% 
+  mutate(source_max=lead(date),
+         area=gsub(" Region","",area)) %>% 
   filter(area %in% unique(HES_hh_reg$area)) 
 
-Reg_benchmarks3 <- Reg_benchmarks2 %>% 
+# HUD_mod_inc_reg2 <- HUD_mod_inc_reg %>% 
+#   filter(area %in% unique(HES_hh_reg$area)) 
+
+Reg_benchmarks3 <- filter(Reg_benchmarks, 
+                          # inc_type=="Disposable", 
+                          tenure=="All", unit=="Household") %>% 
+  mutate(area=gsub(" Region","",area)) %>% 
   filter(area %in% unique(HES_hh_reg$area))
+
+# Reg_benchmarks3 <- Reg_benchmarks2 %>% 
+#   filter(area %in% unique(HES_hh_reg$area))
 
 #HLFS data for comparison
 
@@ -1254,12 +1283,12 @@ HLFS <- read.csv("data/HLFS_med_income.csv", na.strings=c("","NA")) %>%
                      "Manawatu-Wanganui"="Manawatu-Whanganui"),
          value=Income*52) 
 
-pA2 <- ggplot(HUD_mod_inc_reg2, aes(date,value))+
-  geom_line(colour=palc[1])+
+pA2 <- ggplot(HUD_mod_inc_reg2, aes(date,value, colour=inc_type))+
+  geom_line(aes(linetype="model"))+
   geom_point(data=Reg_benchmarks3, aes(y=value, shape="benchmarks"), size=2)+
   geom_point(data=HES_hh_reg2, aes(y=value, shape="Household Economic Survey"), size=2)+
-  geom_point(data=HLFS, aes(y=value, shape="HLFS (Gross)"), size=1, colour="grey60")+
-  geom_line(data=HES_hh_reg2, aes(y=value), size=.3, colour="grey80")+
+  geom_point(data=HLFS, aes(y=value, shape="HLFS (Gross)", colour="Gross", linetype="survey"), size=1)+
+  geom_line(data=HES_hh_reg2, aes(y=value, linetype="survey"), size=.3)+
   geom_vline(xintercept=as.Date("2018-08-01"), colour=palc[4])+
   annotate("text", x = as.Date("2018-08-01"), y = 40000, label = " new HES \n methods", colour=palc[4], hjust="left", size=2.5)+
   facet_wrap(~area, ncol=2)+
@@ -1267,6 +1296,7 @@ pA2 <- ggplot(HUD_mod_inc_reg2, aes(date,value))+
   scale_colour_manual(values=palc,name="")+
   scale_fill_manual(values=c("grey85","grey70","grey55"), name="")+
   scale_size_manual(values=c(.7,1,.2))+
+  scale_linetype_manual(values=c("solid","dotted"), name="")+
   scale_y_continuous(labels=dollar)+
   scale_shape_manual(values=c(19,0,3), name="")+
   labs(title="Modelled timeseries: Regional Council",
@@ -1275,6 +1305,8 @@ pA2 <- ggplot(HUD_mod_inc_reg2, aes(date,value))+
        caption="Source: Stats NZ and author's calculations")+
   theme(legend.position="bottom")+
   guides(fill = guide_legend(ncol=1),
+         shape = guide_legend(ncol=1),
+         linetype = guide_legend(ncol=1),
          colour = guide_legend(ncol=1), override.aes = list(alpha = 1))
 
 pA2
