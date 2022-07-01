@@ -326,7 +326,7 @@ The resulting New Zealand level benchmark estimates, after applying the calibrat
 
 #3.1 Census for all areas 
 
-Census_hh <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv") %>%  
+Census_hh <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv", stringsAsFactors = F) %>%  
   filter(RegionalCouncil == "Total") %>% 
   mutate(date=as.Date(paste0(Year,"-03-31"))) %>% 
   rename(tenure="HouseholdTenure") %>% 
@@ -342,18 +342,18 @@ Census_hh <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517
 
 #3.2 Create combo file from separate area level files
 
-cc1 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv") %>% 
+cc1 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/f9668f69-f6eb-42e5-97b5-ab04eafeab53/download/t1-hhincome-oecdmod-2001-2018.csv", stringsAsFactors = F) %>% 
   rename(area=RegionalCouncil) %>% 
   mutate(area=ifelse(area=="Total","New Zealand",area),
          area=str_trim(gsub('[0-9]+', '', area)),
     level = ifelse(area=="New Zealand","New Zealand","Regional Council"),
     area = ifelse(area=="New Zealand","New Zealand",paste0(area," Region")))
 
-cc2 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/dc7e26dc-eba7-43f9-b2c2-854494c38543/download/t2-ta-hhincome-oecdmod-2001-2018.csv") %>%  
+cc2 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/dc7e26dc-eba7-43f9-b2c2-854494c38543/download/t2-ta-hhincome-oecdmod-2001-2018.csv", stringsAsFactors = F) %>%  
   rename(area=TerritorialAuthority) %>% 
   mutate(level="Territorial Local Authority")
 
-cc3 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/2ee674bd-eb7c-4e40-8ed0-bedf7c44b059/download/t3-alb-hhincome-oecdmod-2001-2018.csv") %>% 
+cc3 <- read.csv("https://catalogue.data.govt.nz/dataset/c2467785-a23b-4517-8be9-5ffc1700635c/resource/2ee674bd-eb7c-4e40-8ed0-bedf7c44b059/download/t3-alb-hhincome-oecdmod-2001-2018.csv", stringsAsFactors = F) %>% 
   rename(area=LocalBoardArea) %>% 
   mutate(level="Auckland Local Board") %>% 
   filter(area !="Total")
@@ -444,7 +444,7 @@ The resulting timeseries, for total New Zealand, are shown in Figure 4. The same
 
 # https://nzdotstat.stats.govt.nz/wbos/Index.aspx?DataSetCode=TABLECODE7037
 
-leed_ta <- read.csv("data/LEED_table37.csv", na.strings=c("","NA"))[,c(1:2,7)] %>% 
+leed_ta <- read.csv("../data/LEED_table37.csv", na.strings=c("","NA"), stringsAsFactors = F)[,c(1:2,7)] %>% 
   fill(Quarter) %>%
   rename(area=Territorial.authority,
          med_inc=Median.earnings.of.full.quarters.jobs) %>% 
@@ -468,7 +468,7 @@ leed_ta <- read.csv("data/LEED_table37.csv", na.strings=c("","NA"))[,c(1:2,7)] %
 
 # https://nzdotstat.stats.govt.nz/wbos/Index.aspx?DataSetCode=TABLECODE7005
 
-leed_reg <- read.csv("data/LEED_table5.csv", na.strings=c("","NA"))[,c(1:2,7)] %>% 
+leed_reg <- read.csv("../data/LEED_table5.csv", na.strings=c("","NA"), stringsAsFactors = F)[,c(1:2,7)] %>% 
   fill(Quarter) %>%
   rename(area=Region,
          med_inc=Median.earnings.of.full.quarters.jobs) %>% 
@@ -501,7 +501,7 @@ leed <- rbind(leed_ta, leed_reg) %>%
 #4.2 More recent quarters from Business Employment Statistics
 
 download.file("https://www.stats.govt.nz/assets/Uploads/Business-employment-data/Business-employment-data-March-2022-quarter/Download-data/business-employment-data-march-2022-quarter-csv.zip",destfile = "bus_emp_mar22.zip")
-bus_emp <- read.csv(unz("bus_emp_mar22.zip", "machine-readable-business-employment-data-mar-2022-quarter.csv"))
+bus_emp <- read.csv(unz("bus_emp_mar22.zip", "machine-readable-business-employment-data-mar-2022-quarter.csv"), stringsAsFactors = F)
 
 bus_emp2 <- bus_emp %>% 
   filter(Series_title_2 =="Total Industry"|
@@ -634,7 +634,7 @@ The method can also be used to create quarterly timeseries. LEED series now use 
 
 #5.1 Read LEED (Linked Employer-Employee Data) from NZ.Stat
 
-leed_ta <- read.csv("data/LEED_table37.csv", na.strings=c("","NA"))[,c(1:2,7)] %>% 
+leed_ta <- read.csv("../data/LEED_table37.csv", na.strings=c("","NA"), stringsAsFactors = F)[,c(1:2,7)] %>% 
   fill(Quarter) %>%
   rename(area=Territorial.authority,
          med_inc=Median.earnings.of.full.quarters.jobs) %>% 
@@ -656,7 +656,7 @@ leed_ta <- read.csv("data/LEED_table37.csv", na.strings=c("","NA"))[,c(1:2,7)] %
   mutate(med_inc=med_inc) %>% #quarterly income
   ungroup()
 
-leed_reg <- read.csv("data/LEED_table5.csv", na.strings=c("","NA"))[,c(1:2,7)] %>%
+leed_reg <- read.csv("../data/LEED_table5.csv", na.strings=c("","NA"), stringsAsFactors = F)[,c(1:2,7)] %>%
   fill(Quarter) %>%
   rename(area=Region,
          med_inc=Median.earnings.of.full.quarters.jobs) %>% 
@@ -1116,7 +1116,7 @@ HES_inc_rev2 <- rbind(HES_inc_2020_rev, HES_inc_2021_rev) %>%
 
 #Add HLFS for comparison
 
-HLFS_NZ <- read.csv("data/HLFS_NZ.csv") %>% 
+HLFS_NZ <- read.csv("../data/HLFS_NZ.csv", stringsAsFactors = F) %>% 
   mutate(date=as.Date(paste0(year,"-06-30")),
          value=med_inc*52)
 
@@ -1273,7 +1273,7 @@ Reg_benchmarks3 <- filter(Reg_benchmarks,
 
 #HLFS data for comparison
 
-HLFS <- read.csv("data/HLFS_med_income.csv", na.strings=c("","NA")) %>% 
+HLFS <- read.csv("../data/HLFS_med_income.csv", na.strings=c("","NA"), stringsAsFactors = F) %>% 
   fill(Year) %>% 
   filter(!(Region %in% c("Gisborne/Hawkes Bay Regions","Tasman/Nelson/Marlborough/West Coast Regions")),
          !is.na(Income)) %>% 
@@ -1353,7 +1353,7 @@ qes_con2 <- qes %>%
 
 #average earnings from business employment survey
 
-bus_emp <- read.csv(unz("bus_emp_mar22.zip", "machine-readable-business-employment-data-mar-2022-quarter.csv"))
+bus_emp <- read.csv(unz("bus_emp_mar22.zip", "machine-readable-business-employment-data-mar-2022-quarter.csv"), stringsAsFactors = F)
 
 bus_emp_con_ave_earn <- bus_emp %>% 
   filter(Group == "Industry by employment variable",
@@ -1379,7 +1379,7 @@ bus_emp_con_ave_earn <- bus_emp %>%
 
 #LEED (annualised)
 
-leed_ta <- read.csv("data/LEED_table37.csv", na.strings=c("","NA"))[,c(1:2,7)] %>% 
+leed_ta <- read.csv("../data/LEED_table37.csv", na.strings=c("","NA"), stringsAsFactors = F)[,c(1:2,7)] %>% 
   fill(Quarter) %>%
   rename(area=Territorial.authority,
          med_inc=Median.earnings.of.full.quarters.jobs) %>% 
